@@ -78,8 +78,6 @@ apt_upgrade
 ########################################
 apt_install gnome-shell-extension-manager || true
 apt_install chrome-gnome-shell || true
-echo "Install Workspace Matrix:"
-echo "https://extensions.gnome.org/extension/1485/workspace-matrix/"
 
 ########################################
 # Docker
@@ -233,4 +231,6 @@ echo "================ NEXT STEPS ================"
 echo "1. Reboot your system"
 echo "2. docker run hello-world"
 echo "3. Run 'tenv'"
+echo "Manually Install Workspace Matrix:"
+echo "https://extensions.gnome.org/extension/1485/workspace-matrix/"
 echo "==========================================="
