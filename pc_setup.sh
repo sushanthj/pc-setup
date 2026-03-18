@@ -76,8 +76,9 @@ apt_upgrade
 ########################################
 # GNOME Extension Manager
 ########################################
-apt_install gnome-shell-extension-manager || true
 apt_install chrome-gnome-shell || true
+log "NOTE: replace chrome-gnome-shell with gnome-browser-connector for Ubuntu 26.04+"
+apt_install gnome-shell-extension-manager || true
 
 ########################################
 # Docker
@@ -231,6 +232,6 @@ echo "================ NEXT STEPS ================"
 echo "1. Reboot your system"
 echo "2. docker run hello-world"
 echo "3. Run 'tenv'"
-echo "Manually Install Workspace Matrix:"
+echo "Manually Install Workspace Matrix using Firefox (not Chrome!)"
 echo "https://extensions.gnome.org/extension/1485/workspace-matrix/"
 echo "==========================================="
