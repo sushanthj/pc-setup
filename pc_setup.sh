@@ -6,8 +6,10 @@ set -Eeuo pipefail
 # Config
 ########################################
 LOG_FILE="$HOME/ubuntu_setup.log"
-UBUNTU_REQUIRED="24.04"
+UBUNTU_MIN="24.04"
 SCRIPT_USER="${SUDO_USER:-$USER}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WSMATRIX_UUID="wsmatrix@martin.zurowietz.de"
 
 ########################################
 # Logging
@@ -53,10 +55,17 @@ apt_install() { retry run_root apt install -y "$@"; }
 log "Starting setup..."
 . /etc/os-release
 
-[[ "$ID" == "ubuntu" && "$VERSION_ID" == "$UBUNTU_REQUIRED" ]] || {
-    error "Ubuntu $UBUNTU_REQUIRED required"
+[[ "$ID" == "ubuntu" ]] || {
+    error "Ubuntu required (detected: $ID)"
     exit 1
 }
+
+dpkg --compare-versions "$VERSION_ID" ge "$UBUNTU_MIN" || {
+    error "Ubuntu $UBUNTU_MIN or newer required (detected: $VERSION_ID)"
+    exit 1
+}
+
+log "Detected Ubuntu $VERSION_ID ($VERSION_CODENAME)"
 
 ########################################
 # Clean broken NVIDIA repo
@@ -76,9 +85,11 @@ apt_upgrade
 ########################################
 # GNOME Extension Manager
 ########################################
-apt_install chrome-gnome-shell || true
-log "NOTE: replace chrome-gnome-shell with gnome-browser-connector for Ubuntu 26.04+"
-apt_install gnome-shell-extension-manager || true
+# gnome-browser-connector replaced chrome-gnome-shell on newer releases;
+# install whichever this release ships.
+apt_install gnome-browser-connector || apt_install chrome-gnome-shell || \
+    warn "No GNOME browser connector package available"
+apt_install gnome-shell-extension-manager || warn "Extension Manager not installed"
 
 ########################################
 # Docker
@@ -223,15 +234,59 @@ grep -Fxq "$ALIAS" ~/.bash_aliases || {
 }
 
 ########################################
+# GNOME extensions (Workspace Matrix)
+########################################
+if command -v gnome-shell &> /dev/null; then
+    if [[ -x "$SCRIPT_DIR/install_gnome_extension.sh" ]]; then
+        log "Installing Workspace Matrix (matched to this GNOME Shell version)..."
+        "$SCRIPT_DIR/install_gnome_extension.sh" "$WSMATRIX_UUID" 2>&1 | tee -a "$LOG_FILE" \
+            || warn "Workspace Matrix install failed — see debug.md"
+    else
+        warn "install_gnome_extension.sh not found next to this script; skipping Workspace Matrix"
+    fi
+else
+    warn "No GNOME Shell detected; skipping Workspace Matrix"
+fi
+
+########################################
+# Verification
+########################################
+log "Verifying installation..."
+
+CHECKS_FAILED=0
+check() {
+    local desc=$1; shift
+    if "$@" &> /dev/null; then
+        log "OK: $desc"
+    else
+        warn "FAILED: $desc"
+        CHECKS_FAILED=1
+    fi
+}
+
+check "docker CLI" command -v docker
+check "docker daemon running" run_root docker info
+check "VS Code" command -v code
+check "python3" command -v python3
+check "pipx" command -v pipx
+check "play_env virtualenv" test -d "$HOME/sush/virtual_envs/play_env"
+check "tenv alias" grep -q "play_env" "$HOME/.bash_aliases"
+check "Workspace Matrix installed" test -f "$HOME/.local/share/gnome-shell/extensions/$WSMATRIX_UUID/metadata.json"
+
+########################################
 # Done
 ########################################
-log "Setup complete!"
+if [[ $CHECKS_FAILED -eq 0 ]]; then
+    log "Setup complete — all checks passed ✅"
+else
+    warn "Setup finished with failed checks — review $LOG_FILE"
+fi
 
 echo ""
 echo "================ NEXT STEPS ================"
-echo "1. Reboot your system"
+echo "1. Reboot (or log out/in) — activates docker group + Workspace Matrix"
 echo "2. docker run hello-world"
 echo "3. Run 'tenv'"
-echo "Manually Install Workspace Matrix using Firefox (not Chrome!)"
-echo "https://extensions.gnome.org/extension/1485/workspace-matrix/"
 echo "==========================================="
+
+exit $CHECKS_FAILED
